@@ -23,6 +23,7 @@ active_layer_index = 0
 shape_start_x = None
 shape_start_y = None
 shape_preview = None
+fill_shape = False  # Заливать фигуру
 
 # СЛОИ
 layers = []
@@ -197,18 +198,24 @@ def save_image():
         messagebox.showinfo("Сохранено", f"Изображение сохранено как:\n{file_path}")
 
 # ФУНКЦИИ ДЛЯ ФИГУР
-def draw_rectangle(draw, x1, y1, x2, y2, color, width):
-    """Рисует прямоугольник (только контур) с заданной толщиной"""
+def draw_rectangle(draw, x1, y1, x2, y2, color, width, fill=False):
+    # Рисует прямоугольник с заданной толщиной и возможностью заливки
     left, top = min(x1, x2), min(y1, y2)
     right, bottom = max(x1, x2), max(y1, y2)
-    draw.rectangle([left, top, right, bottom], outline=color, width=width)
+    if fill:
+        draw.rectangle([left, top, right, bottom], fill=color, outline=color, width=width)
+    else:
+        draw.rectangle([left, top, right, bottom], outline=color, width=width)
+
 
 def draw_line(draw, x1, y1, x2, y2, color, width):
-    """Рисует линию с заданной толщиной"""
+    # Рисует линию с заданной толщиной
     draw.line([x1, y1, x2, y2], fill=color, width=width)
 
-def draw_circle(draw, x1, y1, x2, y2, color, width):
-    """Рисует круг (только контур) с заданной толщиной"""
+
+def draw_circle(draw, x1, y1, x2, y2, color, width, fill=False):
+    # Рисует круг с заданной толщиной и возможностью заливки
+
     # Находим центр и радиус
     center_x = (x1 + x2) // 2
     center_y = (y1 + y2) // 2
@@ -219,7 +226,11 @@ def draw_circle(draw, x1, y1, x2, y2, color, width):
     top = center_y - radius
     bottom = center_y + radius
 
-    draw.ellipse([left, top, right, bottom], outline=color, width=width)
+    if fill:
+        draw.ellipse([left, top, right, bottom], fill=color, outline=color, width=width)
+    else:
+        draw.ellipse([left, top, right, bottom], outline=color, width=width)
+
 
 # Обработка рисования фигур
 def start_shape(e):
@@ -243,14 +254,25 @@ def draw_shape_preview(e):
 
         # Создаем новый предпросмотр в зависимости от фигуры
         if mode == "rectangle":
-            shape_preview = canvas.create_rectangle(shape_start_x, shape_start_y, e.x, e.y,
-                                                    outline=current_color, width=preview_width, fill="")
+            if fill_shape:
+                shape_preview = canvas.create_rectangle(shape_start_x, shape_start_y, e.x, e.y,
+                                                        fill=current_color, outline=current_color,
+                                                        width=preview_width)
+            else:
+                shape_preview = canvas.create_rectangle(shape_start_x, shape_start_y, e.x, e.y,
+                                                        outline=current_color, width=preview_width, fill="")
         elif mode == "line":
             shape_preview = canvas.create_line(shape_start_x, shape_start_y, e.x, e.y,
                                                fill=current_color, width=preview_width)
         elif mode == "circle":
-            shape_preview = canvas.create_oval(shape_start_x, shape_start_y, e.x, e.y,
-                                               outline=current_color, width=preview_width, fill="")
+            if fill_shape:
+                shape_preview = canvas.create_oval(shape_start_x, shape_start_y, e.x, e.y,
+                                                   fill=current_color, outline=current_color,
+                                                   width=preview_width)
+            else:
+                shape_preview = canvas.create_oval(shape_start_x, shape_start_y, e.x, e.y,
+                                                   outline=current_color, width=preview_width, fill="")
+
 
 def finish_shape(e):
     global shape_start_x, shape_start_y, shape_preview
@@ -265,11 +287,11 @@ def finish_shape(e):
         line_width = brush_size
 
         if mode == "rectangle":
-            draw_rectangle(draw, shape_start_x, shape_start_y, e.x, e.y, color_rgb, line_width)
+            draw_rectangle(draw, shape_start_x, shape_start_y, e.x, e.y, color_rgb, line_width, fill_shape)
         elif mode == "line":
             draw_line(draw, shape_start_x, shape_start_y, e.x, e.y, color_rgb, line_width)
         elif mode == "circle":
-            draw_circle(draw, shape_start_x, shape_start_y, e.x, e.y, color_rgb, line_width)
+            draw_circle(draw, shape_start_x, shape_start_y, e.x, e.y, color_rgb, line_width, fill_shape)
 
         # Очищаем предпросмотр
         if shape_preview:
@@ -292,6 +314,16 @@ for name, m in [
 ]:
     tk.Button(tool_panel, text=name, width=14, command=lambda m=m: set_mode(m)).pack(pady=2)
 
+# Кнопка для переключения заливки/контура
+def toggle_fill():
+    global fill_shape
+    fill_shape = not fill_shape
+    fill_btn.config(text=f"🎨 Заливка: {'Вкл' if fill_shape else 'Выкл'}")
+
+
+fill_btn = tk.Button(tool_panel, text="🎨 Заливка: Выкл", width=14, command=toggle_fill)
+fill_btn.pack(pady=2)
+
 tk.Button(tool_panel, text="💾 Сохранить", width=14, command=save_image).pack(pady=2)
 tk.Button(tool_panel, text="⬅ назад", command=lambda: undo()).pack(pady=10)
 tk.Button(tool_panel, text="➡ вперед", command=lambda: redo()).pack()
@@ -301,40 +333,12 @@ top = tk.Frame(root)
 top.pack(side=tk.TOP, fill=tk.X)
 
 tk.Label(top, text="Кисть").pack(side=tk.LEFT)
-brush_scale = tk.Scale(top, from_=1, to=80, orient=tk.HORIZONTAL,
-                       command=lambda v: globals().__setitem__("brush_size", int(v)))
-brush_scale.set(brush_size)
-brush_scale.pack(side=tk.LEFT)
-
-# Показываем текущий размер кисти
-brush_size_label = tk.Label(top, text=f"Размер: {brush_size}", width=10)
-brush_size_label.pack(side=tk.LEFT, padx=5)
-
-
-def update_brush_size(v):
-    brush_size = int(v)
-    brush_size_label.config(text=f"Размер: {brush_size}")
-    globals().__setitem__("brush_size", brush_size)
-
-brush_scale.config(command=update_brush_size)
+tk.Scale(top, from_=1, to=80, orient=tk.HORIZONTAL,
+         command=lambda v: globals().__setitem__("brush_size", int(v))).pack(side=tk.LEFT)
 
 tk.Label(top, text="Ластик").pack(side=tk.LEFT)
-eraser_scale = tk.Scale(top, from_=1, to=80, orient=tk.HORIZONTAL,
-                        command=lambda v: globals().__setitem__("eraser_size", int(v)))
-eraser_scale.set(eraser_size)
-eraser_scale.pack(side=tk.LEFT)
-
-# Показываем текущий размер ластика
-eraser_size_label = tk.Label(top, text=f"Размер: {eraser_size}", width=10)
-eraser_size_label.pack(side=tk.LEFT, padx=5)
-
-def update_eraser_size(v):
-    eraser_size = int(v)
-    eraser_size_label.config(text=f"Размер: {eraser_size}")
-    globals().__setitem__("eraser_size", eraser_size)
-
-eraser_scale.config(command=update_eraser_size)
-
+tk.Scale(top, from_=1, to=80, orient=tk.HORIZONTAL,
+         command=lambda v: globals().__setitem__("eraser_size", int(v))).pack(side=tk.LEFT)
 
 def choose_color():
     global current_color
@@ -389,10 +393,7 @@ def flood_fill(x, y):
 
         px[cx, cy] = fill_color
 
-        q.extend([
-            (cx + 1, cy), (cx - 1, cy),
-            (cx, cy + 1), (cx, cy - 1)
-        ])
+        q.extend([(cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)])
     update_canvas()
 
 # РИСОВАНИЕ КИСТЬЮ
@@ -403,7 +404,7 @@ def smooth_line(x0, y0, x1, y1, color, r):
         x = int(x0+dx*i/steps)
         y = int(y0+dy*i/steps)
         layers_draw[active_layer_index].ellipse(
-            [x-r, y-r, x+r, y+r], fill=color, outline=color
+            [x - r, y - r, x + r, y + r], fill=color, outline=color
         )
 
 def draw(e):
@@ -430,7 +431,6 @@ def draw(e):
         smooth_line(last_x, last_y, e.x, e.y, current_color, brush_size//2)
     elif mode == "eraser":
         smooth_line(last_x, last_y, e.x, e.y, (0, 0, 0, 0), eraser_size//2)
-
     last_x, last_y = e.x, e.y
     update_canvas()
 
@@ -444,7 +444,7 @@ canvas.bind("<B1-Motion>", lambda e: draw_shape_preview(e) if mode in ["rectangl
 canvas.bind("<ButtonRelease-1>", lambda e: finish_shape(e) if mode in ["rectangle", "line", "circle"] else reset(e))
 
 
-# UNDO(вперед)/ REDO(назад)
+# UNDO/REDO
 def undo():
     global layers
     if history:
