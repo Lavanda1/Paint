@@ -6,8 +6,8 @@ from collections import deque
 
 # ОКНО ПРОГРАМЫ
 root = tk.Tk()
-root.title("MyPaint — Layers Pro")
-root.geometry("1100x720")
+root.title("My Paint 💙")
+root.geometry("1540x660")
 
 CANVAS_W, CANVAS_H = 850, 650
 
