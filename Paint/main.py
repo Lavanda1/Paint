@@ -24,7 +24,13 @@ zoom_level = 1.0
 shape_start_x = None
 shape_start_y = None
 shape_preview = None
-fill_shape = False # Заливать фигуру
+fill_shape = False  # Заливать фигуру
+
+# Для перемещения холста
+pan_start_x = 0
+pan_start_y = 0
+canvas_offset_x = 0
+canvas_offset_y = 0
 
 # СЛОИ
 layers = []
@@ -82,9 +88,8 @@ def update_canvas():
         tk_image = ImageTk.PhotoImage(scaled_base)
     else:
         tk_image = ImageTk.PhotoImage(base)
+        # Изображение всегда в левом верхнем углу
     canvas.itemconfig(canvas_img, image=tk_image)
-    # Изображение всегда в левом верхнем углу
-    canvas.coords(canvas_img, 0, 0)
 
 
 # ФУНКЦИИ ЛУПЫ
@@ -107,6 +112,30 @@ def reset_zoom():
     zoom_level = 1.0
     canvas.coords(canvas_img, 0, 0)
     update_canvas()
+
+
+# ФУНКЦИИ ДЛЯ РУКИ (ПЕРЕМЕЩЕНИЕ)
+def start_pan(e):
+    global pan_start_x, pan_start_y
+    if mode == "hand":
+        pan_start_x = e.x
+        pan_start_y = e.y
+        canvas.config(cursor="fleur")
+
+
+def do_pan(e):
+    global pan_start_x, pan_start_y
+    if mode == "hand":
+        dx = e.x - pan_start_x
+        dy = e.y - pan_start_y
+        canvas.move(canvas_img, dx, dy)
+        pan_start_x = e.x
+        pan_start_y = e.y
+
+
+def stop_pan(e):
+    if mode == "hand":
+        canvas.config(cursor="")
 
 
 # СЛОИ: ЛОГИКА
@@ -264,7 +293,7 @@ def draw_line(draw, x1, y1, x2, y2, color, width):
 
 
 def draw_circle(draw, x1, y1, x2, y2, color, width, fill=False):
-    #Рисует круг с заданной толщиной и возможностью заливки
+    # Рисует круг с заданной толщиной и возможностью заливки
 
     # Находим центр и радиус
     center_x = (x1 + x2) // 2
@@ -348,7 +377,6 @@ def finish_shape(e):
 
         # Используем размер кисти для толщины линий
         line_width = brush_size
-
         if mode == "rectangle":
             draw_rectangle(draw, shape_start_x, shape_start_y, real_x, real_y, color_rgb, line_width, fill_shape)
         elif mode == "line":
@@ -375,14 +403,17 @@ for name, m in [
     ("Прямоугольник", "rectangle"),
     ("Линия", "line"),
     ("Круг", "circle"),
+    ("Рука 🖐️", "hand"),
 ]:
     tk.Button(tool_panel, text=name, width=14, command=lambda m=m: set_mode(m)).pack(pady=2)
+
 
 # Кнопка для переключения заливки/контура
 def toggle_fill():
     global fill_shape
     fill_shape = not fill_shape
     fill_btn.config(text=f"🎨 Заливка: {'Вкл' if fill_shape else 'Выкл'}")
+
 
 fill_btn = tk.Button(tool_panel, text="🎨 Заливка: Выкл", width=14, command=toggle_fill)
 fill_btn.pack(pady=2)
@@ -477,24 +508,30 @@ def draw(e):
     global last_x, last_y
 
     # Для фигур используем отдельную обработку
-    if mode in ["rectangle", "line", "circle"]:
-        return # Фигуры обрабатываются в start_shape, draw_shape_preview, finish_shape
+    if mode in ["rectangle", "line", "circle", "hand"]:
+        return
+
     if mode == "picker":
         pick_color(e)
         return
+
     if mode == "fill":
         real_x, real_y = get_real_coords(e)
         flood_fill(real_x, real_y)
         return
+
     real_x, real_y = get_real_coords(e)
+
     if last_x is None:
         last_x, last_y = real_x, real_y
         save_history()
         return
+
     if mode == "brush":
         smooth_line(last_x, last_y, real_x, real_y, current_color, brush_size // 2)
     elif mode == "eraser":
         smooth_line(last_x, last_y, real_x, real_y, (0, 0, 0, 0), eraser_size // 2)
+
     last_x, last_y = real_x, real_y
     update_canvas()
 
@@ -504,10 +541,10 @@ def reset(_):
     last_x = last_y = None
 
 
-# Привязываем события для фигур и обычного рисования
-canvas.bind("<Button-1>", lambda e: start_shape(e) if mode in ["rectangle", "line", "circle"] else draw(e))
-canvas.bind("<B1-Motion>", lambda e: draw_shape_preview(e) if mode in ["rectangle", "line", "circle"] else draw(e))
-canvas.bind("<ButtonRelease-1>", lambda e: finish_shape(e) if mode in ["rectangle", "line", "circle"] else reset(e))
+# Привязываем события для фигур, руки и обычного рисования
+canvas.bind("<Button-1>", lambda e: start_pan(e) if mode == "hand" else (start_shape(e) if mode in ["rectangle", "line", "circle"] else draw(e)))
+canvas.bind("<B1-Motion>", lambda e: do_pan(e) if mode == "hand" else (draw_shape_preview(e) if mode in ["rectangle", "line", "circle"] else draw(e)))
+canvas.bind("<ButtonRelease-1>", lambda e: stop_pan(e) if mode == "hand" else (finish_shape(e) if mode in ["rectangle", "line", "circle"] else reset(e)))
 
 
 # UNDO/REDO
